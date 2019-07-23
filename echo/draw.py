@@ -1,4 +1,5 @@
 import os
+from logging import getLogger
 
 from PIL import Image
 from PIL import ImageFont
@@ -11,6 +12,7 @@ from echo.utils import get_filename
 
 
 config = load_config()
+logger = getLogger(__name__)
 
 BASE_PATH = os.path.join(config.BASE_PATH, "echo")
 RESULT_DIR = os.path.join(BASE_PATH, "images")
@@ -46,7 +48,7 @@ def drawer(text):
     # Поэтому нужно вычислить размер текстового блока с учётом размера шрифта
     sorted_text = sorted(text, key=lambda i: len(i), reverse=True)
     longest_line = sorted_text[0]
-    print("Вычисляем ширину блока исходя из `{}`".format(longest_line))
+    logger.info("Вычисляем ширину блока исходя из `%s`", longest_line)
 
     text_width, text_height = font.getsize(longest_line)
     text_height *= len(text)
@@ -65,7 +67,7 @@ def drawer(text):
         filename = get_filename()
         img.save(os.path.join(RESULT_DIR, filename))
     else:
-        print("Не удалось создать директорию `{}`".format(RESULT_DIR))
+        logger.error("Не удалось создать директорию `%s`", RESULT_DIR)
 
     return img
 
