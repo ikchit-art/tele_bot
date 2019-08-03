@@ -2,18 +2,23 @@ import datetime
 from logging import getLogger
 from subprocess import Popen
 from subprocess import PIPE
+from uuid import uuid4
 
 from telegram import Bot
 from telegram import Update
 from telegram import ParseMode
 from telegram import InlineKeyboardButton
 from telegram import InlineKeyboardMarkup
+from telegram import InlineQueryResultArticle
+from telegram import InputTextMessageContent
 from telegram import ReplyKeyboardRemove
 from telegram.ext import Updater
 from telegram.ext import CommandHandler
 from telegram.ext import MessageHandler
 from telegram.ext import Filters
 from telegram.ext import CallbackQueryHandler
+from telegram.ext import InlineQueryHandler
+from telegram.utils.helpers import escape_markdown
 
 from apis.bittrex import BittrexClient
 from apis.bittrex import BittrexError
@@ -37,6 +42,9 @@ def debug_requests(f):
             return f(*args, **kwargs)
         except Exception:
             logger.exception("Ошибка в обработчике {}".format(f.__name__))
+            if len(args) == 2:
+                update = args[1]
+                logger.error("Сообщение: %s", update.effective_message)
             raise
 
     return inner
@@ -250,9 +258,36 @@ def do_echo(bot: Bot, update: Update):
         )
 
 
-def main():
-    logger.info("Запускаем бота...")
+@debug_requests
+def inline_query_handler(bot: Bot, update: Update):
+    query = update.inline_query.query
+    results = [
+        InlineQueryResultArticle(
+            id=uuid4(),
+            title="Caps",
+            input_message_content=InputTextMessageContent(query.upper()),
+        ),
+        InlineQueryResultArticle(
+            id=uuid4(),
+            title="Bold",
+            input_message_content=InputTextMessageContent(
+                "*{}*".format(escape_markdown(query)),
+                parse_mode=ParseMode.MARKDOWN,
+            ),
+        ),
+        InlineQueryResultArticle(
+            id=uuid4(),
+            title="Italic",
+            input_message_content=InputTextMessageContent(
+                "_{}_".format(escape_markdown(query)),
+                parse_mode=ParseMode.MARKDOWN,
+            ),
+        ),
+    ]
+    update.inline_query.answer(results)
 
+
+def main():
     bot = Bot(
         token=config.TG_TOKEN,
         base_url=config.TG_API_URL,
@@ -260,18 +295,21 @@ def main():
     updater = Updater(
         bot=bot,
     )
+    logger.info("Запускаем бота %s", updater.bot.username)
 
     start_handler = CommandHandler("start", do_start)
     help_handler = CommandHandler("help", do_help)
     time_handler = CommandHandler("time", do_time)
     message_handler = MessageHandler(Filters.text, do_echo)
     buttons_handler = CallbackQueryHandler(callback=keyboard_callback_handler)
+    inline_handler = InlineQueryHandler(callback=inline_query_handler)
 
     updater.dispatcher.add_handler(start_handler)
     updater.dispatcher.add_handler(help_handler)
     updater.dispatcher.add_handler(time_handler)
     updater.dispatcher.add_handler(message_handler)
     updater.dispatcher.add_handler(buttons_handler)
+    # updater.dispatcher.add_handler(inline_handler)
 
     # Начать обработку входящих сообщений
     updater.start_polling()
